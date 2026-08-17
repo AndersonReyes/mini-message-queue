@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-func openLog(t *testing.T, dir string) (*Log) {
+func openLog(t *testing.T, dir string) *Log {
 
 	l, err := LogOpen(dir)
 	if err != nil {
@@ -148,10 +148,9 @@ func TestStorageIsDurable(t *testing.T) {
 	}
 }
 
-
-
 func TestCrashRecoveryPartialPayload(t *testing.T) {
-	dir := t.TempDir()
+	// dir := t.TempDir()
+	dir := "./test-temp"
 
 	l, err := LogOpen(dir)
 	if err != nil {
@@ -173,7 +172,7 @@ func TestCrashRecoveryPartialPayload(t *testing.T) {
 	// offset=1, length=1000 in big-endian, then 3 bytes of "payload"
 	header := []byte{
 		0, 0, 0, 0, 0, 0, 0, 1, // offset=1 uint64 BE
-		0, 0, 3, 232,           // length=1000 uint32 BE
+		0, 0, 3, 232, // length=1000 uint32 BE
 	}
 	if _, err := f.Write(header); err != nil {
 		t.Fatal(err)

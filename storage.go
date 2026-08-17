@@ -1,4 +1,4 @@
-/// TODO: clean up repeated parsing of offset, length, bytes
+// / TODO: clean up repeated parsing of offset, length, bytes
 package storage
 
 import (
@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path"
 )
@@ -33,7 +34,7 @@ func LogOpen(dir string) (*Log, error) {
 	}
 
 	// seek to the end for appending
-	_, err = f.Seek(0, 2)
+	_, err = f.Seek(0, io.SeekEnd)
 	if err != nil {
 		return nil, err
 	}
@@ -51,7 +52,6 @@ func LogOpen(dir string) (*Log, error) {
 func (l *Log) buildIndex() error {
 
 	var filePos int64 = 0
-
 	for {
 		var offsetBytes [8]byte
 		_, err := l.logFile.ReadAt(offsetBytes[:], filePos)
@@ -72,9 +72,35 @@ func (l *Log) buildIndex() error {
 		}
 		length := parseLength(lengthBytes[:])
 
-		l.index[offset] = filePos
-		filePos += (12 + int64(length))
+		nextFilePos := filePos + (12 + int64(length))
 
+		// now ensure the payload is there by trying to seek past the payload
+		retNextFilePos, err := l.logFile.Seek(nextFilePos, io.SeekStart)
+		log.Printf("next file pos: %d, but got: %d\n", nextFilePos, retNextFilePos)
+		if err != nil {
+			// invalid payload, stop parsing
+			log.Printf("buildIndex() ending file reading before offset=%d\n", offset)
+			break
+		} else {
+			stat, err := l.logFile.Stat()
+			if err != nil {
+				return err
+			}
+
+			if nextFilePos >= stat.Size() {
+				// payload length is past the end of the file, invalid
+				log.Printf("buildIndex() invalid length: %d. Values is past the end of the file=%d\n", length, stat.Size())
+				// don't bother adding this record to the index. Instead truncate file to  filepos = 1 + end of prev record
+				if err := l.logFile.Truncate(filePos); err != nil {
+					return err
+				}
+				break
+			} else {
+				l.index[offset] = filePos
+				filePos = nextFilePos
+
+			}
+		}
 	}
 
 	return nil
@@ -96,7 +122,7 @@ func (l *Log) Append(payload []byte) (uint64, error) {
 	}
 
 	// always append to the end
-	filePos, err := l.logFile.Seek(0, 2)
+	filePos, err := l.logFile.Seek(0, io.SeekEnd)
 
 	if err != nil {
 		return 0, err
@@ -123,6 +149,7 @@ func parseLength(data []byte) uint32 {
 }
 
 func (l *Log) Read(offset uint64) ([]byte, error) {
+	log.Printf("index: %+v\n", l.index)
 	filePos, ok := l.index[offset]
 	if !ok {
 		return nil, fmt.Errorf("invalid offset: %d", offset)
@@ -131,7 +158,7 @@ func (l *Log) Read(offset uint64) ([]byte, error) {
 	return l.readAt(offset, int64(filePos))
 }
 
-func (l *Log) readAt(offset uint64, filePos int64) ([]byte, error)  {
+func (l *Log) readAt(offset uint64, filePos int64) ([]byte, error) {
 	// log.Printf("Read(%d) at file pos=%d\n", offset, filePos)
 
 	// read the offset at filePos
