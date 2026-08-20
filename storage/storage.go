@@ -75,8 +75,8 @@ func (l *Log) buildIndex() error {
 		nextFilePos := filePos + (12 + int64(length))
 
 		// now ensure the payload is there by trying to seek past the payload
-		retNextFilePos, err := l.logFile.Seek(nextFilePos, io.SeekStart)
-		log.Printf("next file pos: %d, but got: %d\n", nextFilePos, retNextFilePos)
+		_, err = l.logFile.Seek(nextFilePos, io.SeekStart)
+		// log.Printf("next file pos: %d, but got: %d\n", nextFilePos, retNextFilePos)
 		if err != nil {
 			// invalid payload, stop parsing
 			log.Printf("buildIndex() ending file reading before offset=%d\n", offset)
@@ -149,7 +149,7 @@ func parseLength(data []byte) uint32 {
 }
 
 func (l *Log) Read(offset uint64) ([]byte, error) {
-	log.Printf("index: %+v\n", l.index)
+	// log.Printf("index: %+v\n", l.index)
 	filePos, ok := l.index[offset]
 	if !ok {
 		return nil, fmt.Errorf("invalid offset: %d", offset)
