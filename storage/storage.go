@@ -152,7 +152,7 @@ func (l *Log) Read(offset uint64) ([]byte, error) {
 	// log.Printf("index: %+v\n", l.index)
 	filePos, ok := l.index[offset]
 	if !ok {
-		return nil, fmt.Errorf("invalid offset: %d", offset)
+		return nil, fmt.Errorf("offset does not exist: %d", offset)
 	}
 
 	return l.readAt(offset, int64(filePos))
@@ -192,7 +192,7 @@ func (l *Log) readAt(offset uint64, filePos int64) ([]byte, error) {
 func (l *Log) Close() error {
 	err := l.logFile.Sync()
 	if err != nil {
-		return err
+		return errors.Join(err, fmt.Errorf("Failed to close log"))
 	}
 	return l.logFile.Close()
 }
