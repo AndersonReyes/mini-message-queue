@@ -6,6 +6,8 @@ import (
 	"os"
 	"path"
 	"testing"
+	// "fmt"
+	// "github.com/andersonreyes/mini-message-queue/utils"
 )
 
 func openLog(t *testing.T, dir string) *Log {
@@ -22,7 +24,6 @@ func openTempLog(t *testing.T) (*Log, string) {
 	t.Helper()
 	dir := t.TempDir()
 	// dir := "./test-temp"
-	// log.Printf("Data directory: %s", dir)
 	return openLog(t, dir), dir
 }
 
@@ -112,13 +113,14 @@ func TestStorageIsDurable(t *testing.T) {
 		[]byte("delta"),
 	}
 
-	dir := t.TempDir()
+	 dir := t.TempDir()
 
 	{
 		l := openLog(t, dir)
 		defer closeLog(t, l)
 		for want, p := range testCases {
 			got, err := l.Append(p)
+
 			if err != nil {
 				t.Fatalf("failed to append: %v", err)
 			}
@@ -137,7 +139,7 @@ func TestStorageIsDurable(t *testing.T) {
 			got, err := l2.Read(uint64(offset))
 
 			if err != nil {
-				t.Fatalf("failed to read: %v", err)
+				t.Fatalf("failed to read offset %d: %v", offset, err)
 			}
 
 			if !bytes.Equal(want, got) {

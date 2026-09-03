@@ -6,9 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"path"
+	utils "github.com/andersonreyes/mini-message-queue/utils"
 )
 
 type Record struct {
@@ -23,12 +23,14 @@ type Log struct {
 	index   map[uint64]int64
 }
 
+
 func LogOpen(dir string) (*Log, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, err
 	}
 
-	f, err := os.OpenFile(path.Join(dir, "data.log"), os.O_CREATE|os.O_RDWR, 0o644)
+	logFile := path.Join(dir, "data.log")
+	f, err := os.OpenFile(logFile, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0o644)
 	if err != nil {
 		return nil, err
 	}
@@ -40,19 +42,29 @@ func LogOpen(dir string) (*Log, error) {
 	}
 
 	log := &Log{dir: dir, logFile: f, index: make(map[uint64]int64)}
-	err = log.buildIndex()
 
-	if err != nil {
-		return nil, err
+	info, err := os.Stat(logFile) 
+	if err == nil && info.Size() > 0 {
+		err = log.buildIndex()
+		if err != nil {
+			return nil, err
+		}
 	}
+
+
 
 	return log, nil
 }
 
 func (l *Log) buildIndex() error {
+	stat, err := l.logFile.Stat()
+	if err != nil {
+		return errors.Join(err, fmt.Errorf("failed to get to get the log file stat."))
+	}
 
 	var filePos int64 = 0
 	for {
+
 		var offsetBytes [8]byte
 		_, err := l.logFile.ReadAt(offsetBytes[:], filePos)
 		if err == io.EOF {
@@ -60,7 +72,7 @@ func (l *Log) buildIndex() error {
 		}
 
 		if err != nil {
-			return fmt.Errorf("buildIndex() failed to parse offset: %v", err)
+			return fmt.Errorf("failed to parse offset: %v", err)
 		}
 
 		offset := parseOffset(offsetBytes[:])
@@ -68,40 +80,23 @@ func (l *Log) buildIndex() error {
 		var lengthBytes [4]byte
 		_, err = l.logFile.ReadAt(lengthBytes[:], filePos+8)
 		if err != nil {
-			return fmt.Errorf("buildIndex() failed to parse length: %v", err)
+			return fmt.Errorf("failed to parse length: %v", err)
 		}
 		length := parseLength(lengthBytes[:])
 
-		nextFilePos := filePos + (12 + int64(length))
+		payloadEnd := filePos + (12 + int64(length))
+		utils.Logger.Debug("building index", "offset", offset, "filepos",filePos, "length", length, "payloadEnd", payloadEnd)
 
-		// now ensure the payload is there by trying to seek past the payload
-		_, err = l.logFile.Seek(nextFilePos, io.SeekStart)
-		// log.Printf("next file pos: %d, but got: %d\n", nextFilePos, retNextFilePos)
-		if err != nil {
-			// invalid payload, stop parsing
-			log.Printf("buildIndex() ending file reading before offset=%d\n", offset)
+
+		if payloadEnd > stat.Size() {
+			utils.Logger.Debug(fmt.Sprintf("Payload of record at offset=%d pos=%d is invalid, ignoreing it", offset, filePos))
 			break
-		} else {
-			stat, err := l.logFile.Stat()
-			if err != nil {
-				return err
-			}
-
-			if nextFilePos >= stat.Size() {
-				// payload length is past the end of the file, invalid
-				log.Printf("buildIndex() invalid length: %d. Values is past the end of the file=%d\n", length, stat.Size())
-				// don't bother adding this record to the index. Instead truncate file to  filepos = 1 + end of prev record
-				if err := l.logFile.Truncate(filePos); err != nil {
-					return err
-				}
-				break
-			} else {
-				l.index[offset] = filePos
-				filePos = nextFilePos
-
-			}
 		}
+		l.index[offset] = filePos
+
+		filePos = payloadEnd
 	}
+	utils.Logger.Debug("finished building the index")
 
 	return nil
 
@@ -128,8 +123,8 @@ func (l *Log) Append(payload []byte) (uint64, error) {
 		return 0, err
 	}
 
-	_, err = l.logFile.Write(serialized)
-	if err != nil {
+	n, err := l.logFile.Write(serialized)
+	if err != nil || n != len(serialized) {
 		return 0, errors.Join(err, fmt.Errorf("Failed to write serialized data"))
 	}
 	l.index[offset] = filePos
@@ -151,6 +146,9 @@ func parseLength(data []byte) uint32 {
 func (l *Log) Read(offset uint64) ([]byte, error) {
 	// log.Printf("index: %+v\n", l.index)
 	filePos, ok := l.index[offset]
+	for k, v := range l.index {
+		utils.Logger.Debug("debug index: ", "key", k, "val", v)
+	}
 	if !ok {
 		return nil, fmt.Errorf("offset does not exist: %d", offset)
 	}

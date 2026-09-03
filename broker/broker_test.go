@@ -13,8 +13,8 @@ import (
 // helper: open a registry in a fresh temp dir.
 func openTempRegistry(t *testing.T) (*Registry, string) {
 	t.Helper()
-	// dir := t.TempDir()
-	dir := "./test-temp"
+	dir := t.TempDir()
+	// dir := "./test-temp"
 	r, err := OpenRegistry(dir)
 	if err != nil {
 		t.Fatalf("OpenRegistry(%q): %v", dir, err)
@@ -149,7 +149,7 @@ func TestProduce(t *testing.T) {
 	closeRegistry(t, r)
 
 	expectedPartitionDir := path.Join(dir, topic, "0")
-	partitionLog, err := storage.LogOpen(expectedPartitionDir)
+	partitionLog, err := storage.LogOpen(expectedPartitionDir )
 	if err != nil {
 		t.Fatalf("failed to open raw log %v", err)
 	}
@@ -161,7 +161,7 @@ func TestProduce(t *testing.T) {
 		t.Fatalf("%s: error reading log record at offset %d: %v", expectedPartitionDir, offset, err)
 	}
 
-	if bytes.Equal(payload, entry) {
+	if !bytes.Equal(payload, entry) {
 		t.Errorf("want %v, but got %v", payload, entry)
 	}
 
