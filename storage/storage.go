@@ -5,10 +5,10 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	utils "github.com/andersonreyes/mini-message-queue/utils"
 	"io"
 	"os"
 	"path"
-	utils "github.com/andersonreyes/mini-message-queue/utils"
 )
 
 type Record struct {
@@ -22,7 +22,6 @@ type Log struct {
 	counter uint64
 	index   map[uint64]int64
 }
-
 
 func LogOpen(dir string) (*Log, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -43,15 +42,13 @@ func LogOpen(dir string) (*Log, error) {
 
 	log := &Log{dir: dir, logFile: f, index: make(map[uint64]int64)}
 
-	info, err := os.Stat(logFile) 
+	info, err := os.Stat(logFile)
 	if err == nil && info.Size() > 0 {
 		err = log.buildIndex()
 		if err != nil {
 			return nil, err
 		}
 	}
-
-
 
 	return log, nil
 }
@@ -85,8 +82,7 @@ func (l *Log) buildIndex() error {
 		length := parseLength(lengthBytes[:])
 
 		payloadEnd := filePos + (12 + int64(length))
-		utils.Logger.Debug("building index", "offset", offset, "filepos",filePos, "length", length, "payloadEnd", payloadEnd)
-
+		utils.Logger.Debug("building index", "offset", offset, "filepos", filePos, "length", length, "payloadEnd", payloadEnd)
 
 		if payloadEnd > stat.Size() {
 			utils.Logger.Debug(fmt.Sprintf("Payload of record at offset=%d pos=%d is invalid, ignoreing it", offset, filePos))
@@ -188,9 +184,18 @@ func (l *Log) readAt(offset uint64, filePos int64) ([]byte, error) {
 }
 
 func (l *Log) Close() error {
-	err := l.logFile.Sync()
+	err := l.Flush()
 	if err != nil {
 		return errors.Join(err, fmt.Errorf("Failed to close log"))
 	}
 	return l.logFile.Close()
+}
+
+func (l *Log) Flush() error {
+	err := l.logFile.Sync()
+	if err != nil {
+		return errors.Join(err, fmt.Errorf("Failed to close log"))
+	}
+
+	return nil
 }

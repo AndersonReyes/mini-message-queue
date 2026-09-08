@@ -32,14 +32,32 @@ func OpenBroker(dir string) (*Broker, error) {
 func (r *Broker) Close() error {
 	var allErrors []error
 	for _, log := range r.topicLogs {
-
 		if err := log.Close(); err != nil {
 			allErrors = append(allErrors, err)
 		}
 	}
 
 	if len(allErrors) > 0 {
-		allErrors = append(allErrors, fmt.Errorf("Registry.Close(): failed to close some logs."))
+		allErrors = append(allErrors, fmt.Errorf("Broker.Close(): failed to close some logs."))
+	} else {
+		allErrors = nil
+	}
+
+	return errors.Join(allErrors...)
+}
+
+func (r *Broker) Flush() error {
+	var allErrors []error
+	for _, log := range r.topicLogs {
+
+		if err := log.Flush(); err != nil {
+			allErrors = append(allErrors, err)
+		}
+	}
+
+	if len(allErrors) > 0 {
+		allErrors = append(allErrors, fmt.Errorf("Broker.Flush(): failed to close some logs."))
+		utils.Logger.Error("broker failed to flush all log files: ", "errors", errors.Join(allErrors...))
 	} else {
 		allErrors = nil
 	}
@@ -125,7 +143,7 @@ func (r *Broker) Produce(topic string, payload []byte, key []byte) (partition ui
 	return partition, offset, nil
 }
 
-func (r *Broker) Fetch(topic string, partition uint32, offset uint64)([]byte, error) {
+func (r *Broker) Fetch(topic string, partition uint32, offset uint64) ([]byte, error) {
 	topicLogName := fmt.Sprintf("%s/%d", topic, partition)
 	log, ok := r.topicLogs[topicLogName]
 	if !ok {

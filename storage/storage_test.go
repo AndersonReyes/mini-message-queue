@@ -113,7 +113,7 @@ func TestStorageIsDurable(t *testing.T) {
 		[]byte("delta"),
 	}
 
-	 dir := t.TempDir()
+	dir := t.TempDir()
 
 	{
 		l := openLog(t, dir)

@@ -149,7 +149,7 @@ func TestProduce(t *testing.T) {
 	closeBroker(t, r)
 
 	expectedPartitionDir := path.Join(dir, topic, "0")
-	partitionLog, err := storage.LogOpen(expectedPartitionDir )
+	partitionLog, err := storage.LogOpen(expectedPartitionDir)
 	if err != nil {
 		t.Fatalf("failed to open raw log %v", err)
 	}
@@ -240,7 +240,6 @@ func TestProduceFetchRoundtrip(t *testing.T) {
 		t.Errorf("Fetch = %q, want %q", got, payload)
 	}
 }
-
 
 func TestRoundRobinNoKey(t *testing.T) {
 	r, _ := openTempBroker(t)
