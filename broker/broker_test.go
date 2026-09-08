@@ -11,7 +11,7 @@ import (
 )
 
 // helper: open a registry in a fresh temp dir.
-func openTempRegistry(t *testing.T) (*Registry, string) {
+func openTempRegistry(t *testing.T) (*Broker, string) {
 	t.Helper()
 	dir := t.TempDir()
 	// dir := "./test-temp"
@@ -22,7 +22,7 @@ func openTempRegistry(t *testing.T) (*Registry, string) {
 	return r, dir
 }
 
-func closeRegistry(t *testing.T, r *Registry) {
+func closeRegistry(t *testing.T, r *Broker) {
 	t.Helper()
 	if err := r.Close(); err != nil {
 		t.Fatalf("test closeRegistry(): %v", err)
@@ -165,4 +165,130 @@ func TestProduce(t *testing.T) {
 		t.Errorf("want %v, but got %v", payload, entry)
 	}
 
+}
+
+func TestProduceUnknownTopic(t *testing.T) {
+	r, _ := openTempRegistry(t)
+	defer closeRegistry(t, r)
+
+	_, _, err := r.Produce("missing", []byte("x"), nil)
+	if err == nil {
+		t.Fatal("Produce to unknown topic: expected error, got nil")
+	}
+}
+
+func TestFetchUnknownTopic(t *testing.T) {
+	r, _ := openTempRegistry(t)
+	defer closeRegistry(t, r)
+
+	_, err := r.Fetch("missing", 0, 0)
+	if err == nil {
+		t.Fatal("Fetch from unknown topic: expected error, got nil")
+	}
+}
+
+func TestFetchOutOfRange(t *testing.T) {
+	r, _ := openTempRegistry(t)
+	defer closeRegistry(t, r)
+
+	if err := r.CreateTopic("t", 1); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := r.Produce("t", []byte("a"), nil); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := r.Fetch("t", 0, 99)
+	if err == nil {
+		t.Fatal("Fetch out-of-range offset: expected error, got nil")
+	}
+}
+
+func TestFetchUnknownPartition(t *testing.T) {
+	r, _ := openTempRegistry(t)
+	defer closeRegistry(t, r)
+
+	if err := r.CreateTopic("t", 1); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := r.Fetch("t", 99, 0)
+	if err == nil {
+		t.Fatal("Fetch from nonexistent partition: expected error, got nil")
+	}
+}
+
+func TestProduceFetchRoundtrip(t *testing.T) {
+	r, _ := openTempRegistry(t)
+	defer closeRegistry(t, r)
+
+	if err := r.CreateTopic("t", 1); err != nil {
+		t.Fatal(err)
+	}
+
+	payload := []byte("hello broker")
+	part, off, err := r.Produce("t", payload, nil)
+	if err != nil {
+		t.Fatalf("Produce: %v", err)
+	}
+
+	got, err := r.Fetch("t", part, off)
+	if err != nil {
+		t.Fatalf("Fetch(t, %d, %d): %v", part, off, err)
+	}
+	if string(got) != string(payload) {
+		t.Errorf("Fetch = %q, want %q", got, payload)
+	}
+}
+
+
+func TestRoundRobinNoKey(t *testing.T) {
+	r, _ := openTempRegistry(t)
+	defer closeRegistry(t, r)
+
+	const numPartitions = 3
+	if err := r.CreateTopic("rr", numPartitions); err != nil {
+		t.Fatal(err)
+	}
+
+	// Produce 6 messages with no key; each partition should get exactly 2.
+	counts := make(map[uint32]int)
+	for range 6 {
+		p, _, err := r.Produce("rr", []byte("msg"), nil)
+		if err != nil {
+			t.Fatalf("Produce: %v", err)
+		}
+		counts[p]++
+	}
+	if len(counts) != numPartitions {
+		t.Fatalf("round-robin used %d partitions, want %d", len(counts), numPartitions)
+	}
+	for part, count := range counts {
+		if count != 2 {
+			t.Errorf("partition %d got %d messages, want 2", part, count)
+		}
+	}
+}
+
+func TestKeyRoutingDeterministic(t *testing.T) {
+	r, _ := openTempRegistry(t)
+	defer closeRegistry(t, r)
+
+	if err := r.CreateTopic("k", 5); err != nil {
+		t.Fatal(err)
+	}
+
+	key := []byte("user-42")
+	var firstPart uint32
+	for i := range 10 {
+		p, _, err := r.Produce("k", []byte("payload"), key)
+		if err != nil {
+			t.Fatalf("Produce #%d: %v", i, err)
+		}
+		if i == 0 {
+			firstPart = p
+		} else if p != firstPart {
+			t.Fatalf("key routing not deterministic: got partition %d then %d", firstPart, p)
+		}
+	}
 }

@@ -8,9 +8,10 @@ import (
 	"slices"
 
 	"github.com/andersonreyes/mini-message-queue/storage"
+	utils "github.com/andersonreyes/mini-message-queue/utils"
 )
 
-type Registry struct {
+type Broker struct {
 	dir string
 	/// map topics to logs
 	topicLogs map[string]*storage.Log
@@ -21,14 +22,14 @@ type Registry struct {
 
 // OpenRegistry opens (or creates) a registry rooted at dir.
 // Layout: dir/<topic>/<partition_id>/ each containing a storage.Log.
-func OpenRegistry(dir string) (*Registry, error) {
-	return &Registry{
+func OpenRegistry(dir string) (*Broker, error) {
+	return &Broker{
 		dir: dir, topicLogs: map[string]*storage.Log{}, partitions: map[string]uint32{},
 		lastUsedPartition: 0,
 	}, nil
 }
 
-func (r *Registry) Close() error {
+func (r *Broker) Close() error {
 	var allErrors []error
 	for _, log := range r.topicLogs {
 		if err := log.Close(); err != nil {
@@ -45,7 +46,16 @@ func (r *Registry) Close() error {
 	return errors.Join(allErrors...)
 }
 
-func (r *Registry) CreateTopic(topic string, partitions uint32) error {
+func (r *Broker) Flush() error {
+	if err := r.Flush(); err != nil {
+		utils.Logger.Error("failed for flush registry: ", "err", err)
+		return err
+	}
+
+	return nil
+}
+
+func (r *Broker) CreateTopic(topic string, partitions uint32) error {
 
 	n, ok := r.partitions[topic]
 	if ok {
@@ -71,7 +81,7 @@ func (r *Registry) CreateTopic(topic string, partitions uint32) error {
 	return nil
 }
 
-func (r *Registry) NumPartitions(topic string) (uint32, error) {
+func (r *Broker) NumPartitions(topic string) (uint32, error) {
 	n, ok := r.partitions[topic]
 
 	if !ok {
@@ -80,7 +90,7 @@ func (r *Registry) NumPartitions(topic string) (uint32, error) {
 	return n, nil
 }
 
-func (r *Registry) TopicNames() []string {
+func (r *Broker) TopicNames() []string {
 	return slices.Sorted(maps.Keys(r.partitions))
 }
 
@@ -89,7 +99,7 @@ func (r *Registry) TopicNames() []string {
 // nil.
 // Returns the partition index and the offset of the written record.
 // Returns an error if the topic does not exist.
-func (r *Registry) Produce(topic string, payload []byte, key []byte) (partition uint32, offset uint64, err error) {
+func (r *Broker) Produce(topic string, payload []byte, key []byte) (partition uint32, offset uint64, err error) {
 	numPartitions, ok := r.partitions[topic]
 	if !ok {
 		return 0, 0, fmt.Errorf("Produce(): topic %s does not exist.", topic)
@@ -121,4 +131,21 @@ func (r *Registry) Produce(topic string, payload []byte, key []byte) (partition 
 	}
 
 	return partition, offset, nil
+}
+
+func (r *Broker) Fetch(topic string, partition uint32, offset uint64)([]byte, error) {
+	topicLogName := fmt.Sprintf("%s/%d", topic, partition)
+	log, ok := r.topicLogs[topicLogName]
+	if !ok {
+		utils.Logger.Error("topic or partition does not exist: ", "topic", topic, "partition", partition)
+		return nil, fmt.Errorf("topic or partition does not exist %s\n", topicLogName)
+	}
+
+	payload, err := log.Read(offset)
+
+	if err != nil {
+		utils.Logger.Error("Failed to read ", "topic", topic, "partition", partition, "offset", offset)
+		return nil, fmt.Errorf("Failed to read /topic/partition/offset: %s/%d/%d", topic, partition, offset)
+	}
+	return payload, nil
 }
