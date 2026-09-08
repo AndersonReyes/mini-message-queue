@@ -20,9 +20,9 @@ type Broker struct {
 	lastUsedPartition uint32
 }
 
-// OpenRegistry opens (or creates) a registry rooted at dir.
+// OpenBroker opens (or creates) a registry rooted at dir.
 // Layout: dir/<topic>/<partition_id>/ each containing a storage.Log.
-func OpenRegistry(dir string) (*Broker, error) {
+func OpenBroker(dir string) (*Broker, error) {
 	return &Broker{
 		dir: dir, topicLogs: map[string]*storage.Log{}, partitions: map[string]uint32{},
 		lastUsedPartition: 0,
@@ -32,6 +32,7 @@ func OpenRegistry(dir string) (*Broker, error) {
 func (r *Broker) Close() error {
 	var allErrors []error
 	for _, log := range r.topicLogs {
+
 		if err := log.Close(); err != nil {
 			allErrors = append(allErrors, err)
 		}
@@ -44,15 +45,6 @@ func (r *Broker) Close() error {
 	}
 
 	return errors.Join(allErrors...)
-}
-
-func (r *Broker) Flush() error {
-	if err := r.Flush(); err != nil {
-		utils.Logger.Error("failed for flush registry: ", "err", err)
-		return err
-	}
-
-	return nil
 }
 
 func (r *Broker) CreateTopic(topic string, partitions uint32) error {

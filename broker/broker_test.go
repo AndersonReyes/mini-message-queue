@@ -11,29 +11,29 @@ import (
 )
 
 // helper: open a registry in a fresh temp dir.
-func openTempRegistry(t *testing.T) (*Broker, string) {
+func openTempBroker(t *testing.T) (*Broker, string) {
 	t.Helper()
 	dir := t.TempDir()
 	// dir := "./test-temp"
-	r, err := OpenRegistry(dir)
+	r, err := OpenBroker(dir)
 	if err != nil {
-		t.Fatalf("OpenRegistry(%q): %v", dir, err)
+		t.Fatalf("OpenBroker(%q): %v", dir, err)
 	}
 	return r, dir
 }
 
-func closeRegistry(t *testing.T, r *Broker) {
+func closeBroker(t *testing.T, r *Broker) {
 	t.Helper()
 	if err := r.Close(); err != nil {
-		t.Fatalf("test closeRegistry(): %v", err)
+		t.Fatalf("test closeBroker(): %v", err)
 	}
 }
 
 // ── CreateTopic ───────────────────────────────────────────────────────────────
 
 func TestCreateTopicBasic(t *testing.T) {
-	r, dir := openTempRegistry(t)
-	defer closeRegistry(t, r)
+	r, dir := openTempBroker(t)
+	defer closeBroker(t, r)
 
 	if err := r.CreateTopic("events", 3); err != nil {
 		t.Fatalf("CreateTopic(events, 3): %v", err)
@@ -57,8 +57,8 @@ func TestCreateTopicBasic(t *testing.T) {
 }
 
 func TestCreateTopicIdempotent(t *testing.T) {
-	r, _ := openTempRegistry(t)
-	defer closeRegistry(t, r)
+	r, _ := openTempBroker(t)
+	defer closeBroker(t, r)
 
 	if err := r.CreateTopic("orders", 2); err != nil {
 		t.Fatalf("first CreateTopic: %v", err)
@@ -70,8 +70,8 @@ func TestCreateTopicIdempotent(t *testing.T) {
 }
 
 func TestCreateTopicConflict(t *testing.T) {
-	r, _ := openTempRegistry(t)
-	defer closeRegistry(t, r)
+	r, _ := openTempBroker(t)
+	defer closeBroker(t, r)
 
 	if err := r.CreateTopic("logs", 4); err != nil {
 		t.Fatal(err)
@@ -83,8 +83,8 @@ func TestCreateTopicConflict(t *testing.T) {
 }
 
 func TestTopicNamesEmpty(t *testing.T) {
-	r, _ := openTempRegistry(t)
-	defer closeRegistry(t, r)
+	r, _ := openTempBroker(t)
+	defer closeBroker(t, r)
 
 	names := r.TopicNames()
 	if len(names) != 0 {
@@ -93,8 +93,8 @@ func TestTopicNamesEmpty(t *testing.T) {
 }
 
 func TestTopicNamesSorted(t *testing.T) {
-	r, _ := openTempRegistry(t)
-	defer closeRegistry(t, r)
+	r, _ := openTempBroker(t)
+	defer closeBroker(t, r)
 
 	for _, name := range []string{"zebra", "alpha", "middle"} {
 		if err := r.CreateTopic(name, 1); err != nil {
@@ -115,8 +115,8 @@ func TestTopicNamesSorted(t *testing.T) {
 }
 
 func TestNumPartitionsUnknownTopic(t *testing.T) {
-	r, _ := openTempRegistry(t)
-	defer closeRegistry(t, r)
+	r, _ := openTempBroker(t)
+	defer closeBroker(t, r)
 
 	_, err := r.NumPartitions("nonexistent")
 	if err == nil {
@@ -125,7 +125,7 @@ func TestNumPartitionsUnknownTopic(t *testing.T) {
 }
 
 func TestProduce(t *testing.T) {
-	r, dir := openTempRegistry(t)
+	r, dir := openTempBroker(t)
 	topic := "test-topic"
 
 	if err := r.CreateTopic(topic, 1); err != nil {
@@ -146,7 +146,7 @@ func TestProduce(t *testing.T) {
 		t.Errorf("want offset 0 but got %d", offset)
 	}
 
-	closeRegistry(t, r)
+	closeBroker(t, r)
 
 	expectedPartitionDir := path.Join(dir, topic, "0")
 	partitionLog, err := storage.LogOpen(expectedPartitionDir )
@@ -168,8 +168,8 @@ func TestProduce(t *testing.T) {
 }
 
 func TestProduceUnknownTopic(t *testing.T) {
-	r, _ := openTempRegistry(t)
-	defer closeRegistry(t, r)
+	r, _ := openTempBroker(t)
+	defer closeBroker(t, r)
 
 	_, _, err := r.Produce("missing", []byte("x"), nil)
 	if err == nil {
@@ -178,8 +178,8 @@ func TestProduceUnknownTopic(t *testing.T) {
 }
 
 func TestFetchUnknownTopic(t *testing.T) {
-	r, _ := openTempRegistry(t)
-	defer closeRegistry(t, r)
+	r, _ := openTempBroker(t)
+	defer closeBroker(t, r)
 
 	_, err := r.Fetch("missing", 0, 0)
 	if err == nil {
@@ -188,8 +188,8 @@ func TestFetchUnknownTopic(t *testing.T) {
 }
 
 func TestFetchOutOfRange(t *testing.T) {
-	r, _ := openTempRegistry(t)
-	defer closeRegistry(t, r)
+	r, _ := openTempBroker(t)
+	defer closeBroker(t, r)
 
 	if err := r.CreateTopic("t", 1); err != nil {
 		t.Fatal(err)
@@ -205,8 +205,8 @@ func TestFetchOutOfRange(t *testing.T) {
 }
 
 func TestFetchUnknownPartition(t *testing.T) {
-	r, _ := openTempRegistry(t)
-	defer closeRegistry(t, r)
+	r, _ := openTempBroker(t)
+	defer closeBroker(t, r)
 
 	if err := r.CreateTopic("t", 1); err != nil {
 		t.Fatal(err)
@@ -219,8 +219,8 @@ func TestFetchUnknownPartition(t *testing.T) {
 }
 
 func TestProduceFetchRoundtrip(t *testing.T) {
-	r, _ := openTempRegistry(t)
-	defer closeRegistry(t, r)
+	r, _ := openTempBroker(t)
+	defer closeBroker(t, r)
 
 	if err := r.CreateTopic("t", 1); err != nil {
 		t.Fatal(err)
@@ -243,8 +243,8 @@ func TestProduceFetchRoundtrip(t *testing.T) {
 
 
 func TestRoundRobinNoKey(t *testing.T) {
-	r, _ := openTempRegistry(t)
-	defer closeRegistry(t, r)
+	r, _ := openTempBroker(t)
+	defer closeBroker(t, r)
 
 	const numPartitions = 3
 	if err := r.CreateTopic("rr", numPartitions); err != nil {
@@ -271,8 +271,8 @@ func TestRoundRobinNoKey(t *testing.T) {
 }
 
 func TestKeyRoutingDeterministic(t *testing.T) {
-	r, _ := openTempRegistry(t)
-	defer closeRegistry(t, r)
+	r, _ := openTempBroker(t)
+	defer closeBroker(t, r)
 
 	if err := r.CreateTopic("k", 5); err != nil {
 		t.Fatal(err)
