@@ -24,8 +24,7 @@ func (c *ConcurrentBroker) Produce(topic string, payload []byte, key []byte) (pa
 	return c.broker.Produce(topic, payload, key)
 }
 
-
-func(c *ConcurrentBroker) Fetch(topic string, partition uint32, offset uint64) (payload []byte, err error) {
+func (c *ConcurrentBroker) Fetch(topic string, partition uint32, offset uint64) (payload []byte, err error) {
 	c.m.RLock()
 	defer c.m.RUnlock()
 	return c.broker.Fetch(topic, partition, offset)

@@ -56,7 +56,7 @@ func LogOpen(dir string) (*Log, error) {
 func (l *Log) buildIndex() error {
 	stat, err := l.logFile.Stat()
 	if err != nil {
-		return errors.Join(err, fmt.Errorf("failed to get to get the log file stat."))
+		return errors.Join(err, fmt.Errorf("failed to get to get the log file stat"))
 	}
 
 	var filePos int64 = 0
@@ -109,7 +109,7 @@ func (l *Log) Append(payload []byte) (uint64, error) {
 	binary.BigEndian.PutUint64(serialized[0:8], offset)
 	binary.BigEndian.PutUint32(serialized[8:12], uint32(len(payload)))
 	if n := copy(serialized[12:], payload); n != len(payload) {
-		return 0, fmt.Errorf("Failed to copy payload into serialized\n")
+		return 0, fmt.Errorf("failed to copy payload into serialized")
 	}
 
 	// always append to the end
@@ -121,7 +121,7 @@ func (l *Log) Append(payload []byte) (uint64, error) {
 
 	n, err := l.logFile.Write(serialized)
 	if err != nil || n != len(serialized) {
-		return 0, errors.Join(err, fmt.Errorf("Failed to write serialized data"))
+		return 0, errors.Join(err, fmt.Errorf("failed to write serialized data"))
 	}
 	l.index[offset] = filePos
 	// log.Printf("wrote %v offset=%d at file pos=%d\n", serialized, offset, filePos)
@@ -180,13 +180,17 @@ func (l *Log) readAt(offset uint64, filePos int64) ([]byte, error) {
 	payload := make([]byte, length)
 	_, err = l.logFile.ReadAt(payload, int64(filePos+12))
 
+	if err != nil {
+		return nil, err
+	}
+
 	return payload, nil
 }
 
 func (l *Log) Close() error {
 	err := l.Flush()
 	if err != nil {
-		return errors.Join(err, fmt.Errorf("Failed to close log"))
+		return errors.Join(err, fmt.Errorf("failed to close log"))
 	}
 	return l.logFile.Close()
 }
@@ -194,7 +198,7 @@ func (l *Log) Close() error {
 func (l *Log) Flush() error {
 	err := l.logFile.Sync()
 	if err != nil {
-		return errors.Join(err, fmt.Errorf("Failed to close log"))
+		return errors.Join(err, fmt.Errorf("failed to close log"))
 	}
 
 	return nil

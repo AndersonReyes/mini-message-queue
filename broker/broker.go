@@ -38,7 +38,7 @@ func (r *Broker) Close() error {
 	}
 
 	if len(allErrors) > 0 {
-		allErrors = append(allErrors, fmt.Errorf("Broker.Close(): failed to close some logs."))
+		allErrors = append(allErrors, fmt.Errorf("Broker.Close(): failed to close some logs"))
 	} else {
 		allErrors = nil
 	}
@@ -56,7 +56,7 @@ func (r *Broker) Flush() error {
 	}
 
 	if len(allErrors) > 0 {
-		allErrors = append(allErrors, fmt.Errorf("Broker.Flush(): failed to close some logs."))
+		allErrors = append(allErrors, fmt.Errorf("Broker.Flush(): failed to close some logs"))
 		utils.Logger.Error("broker failed to flush all log files: ", "errors", errors.Join(allErrors...))
 	} else {
 		allErrors = nil
@@ -112,7 +112,7 @@ func (r *Broker) TopicNames() []string {
 func (r *Broker) Produce(topic string, payload []byte, key []byte) (partition uint32, offset uint64, err error) {
 	numPartitions, ok := r.partitions[topic]
 	if !ok {
-		return 0, 0, fmt.Errorf("Produce(): topic %s does not exist.", topic)
+		return 0, 0, fmt.Errorf("Produce(): topic %s does not exist", topic)
 	}
 
 	if key != nil {
@@ -120,7 +120,7 @@ func (r *Broker) Produce(topic string, payload []byte, key []byte) (partition ui
 		_, err := h.Write(key)
 
 		if err != nil {
-			return 0, 0, errors.Join(err, fmt.Errorf("Produce(): failed to hash key"))
+			return 0, 0, errors.Join(err, fmt.Errorf("produce(): failed to hash key"))
 		}
 
 		partition = h.Sum32() % numPartitions
@@ -132,12 +132,12 @@ func (r *Broker) Produce(topic string, payload []byte, key []byte) (partition ui
 	topicLogName := fmt.Sprintf("%s/%d", topic, partition)
 	log, ok := r.topicLogs[topicLogName]
 	if !ok {
-		return 0, 0, fmt.Errorf("Failed to find a topic log using %s", topicLogName)
+		return 0, 0, fmt.Errorf("failed to find a topic log using %s", topicLogName)
 	}
 
 	offset, err = log.Append(payload)
 	if err != nil {
-		return 0, 0, errors.Join(err, fmt.Errorf("Produce(): failed to append payload to log %s", topicLogName))
+		return 0, 0, errors.Join(err, fmt.Errorf("produce(): failed to append payload to log %s", topicLogName))
 	}
 
 	return partition, offset, nil
@@ -148,14 +148,14 @@ func (r *Broker) Fetch(topic string, partition uint32, offset uint64) ([]byte, e
 	log, ok := r.topicLogs[topicLogName]
 	if !ok {
 		utils.Logger.Error("topic or partition does not exist: ", "topic", topic, "partition", partition)
-		return nil, fmt.Errorf("topic or partition does not exist %s\n", topicLogName)
+		return nil, fmt.Errorf("topic or partition does not exist %s", topicLogName)
 	}
 
 	payload, err := log.Read(offset)
 
 	if err != nil {
-		utils.Logger.Error("Failed to read ", "topic", topic, "partition", partition, "offset", offset)
-		return nil, fmt.Errorf("Failed to read /topic/partition/offset: %s/%d/%d", topic, partition, offset)
+		utils.Logger.Error("failed to read ", "topic", topic, "partition", partition, "offset", offset)
+		return nil, fmt.Errorf("failed to read /topic/partition/offset: %s/%d/%d", topic, partition, offset)
 	}
 	return payload, nil
 }

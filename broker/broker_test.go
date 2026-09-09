@@ -29,6 +29,13 @@ func closeBroker(t *testing.T, r *Broker) {
 	}
 }
 
+func closeLog(t *testing.T, l *storage.Log) {
+	t.Helper()
+	if err := l.Close(); err != nil {
+		t.Fatalf("failed to close storage log: %v", err)
+	}
+}
+
 // ── CreateTopic ───────────────────────────────────────────────────────────────
 
 func TestCreateTopicBasic(t *testing.T) {
@@ -154,7 +161,7 @@ func TestProduce(t *testing.T) {
 		t.Fatalf("failed to open raw log %v", err)
 	}
 
-	defer partitionLog.Close()
+	defer closeLog(t, partitionLog)
 
 	entry, err := partitionLog.Read(offset)
 	if err != nil {

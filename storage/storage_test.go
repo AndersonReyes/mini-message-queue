@@ -182,7 +182,12 @@ func TestCrashRecoveryPartialPayload(t *testing.T) {
 	if _, err := f.Write([]byte("pay")); err != nil { // only 3 of 1000 bytes
 		t.Fatal(err)
 	}
-	f.Close()
+
+	defer func() {
+		if err := f.Close(); err != nil {
+			t.Fatal(err)
+		}
+	}()
 
 	// Reopen — should truncate the partial payload record.
 	l2, err := LogOpen(dir)

@@ -24,9 +24,16 @@ func openConcurrentBroker(t *testing.T) (*ConcurrentBroker, string) {
 	return cr, dir
 }
 
+func closeConcurrentBroker(t *testing.T, c *ConcurrentBroker) {
+	t.Helper()
+	if err := c.Close(); err != nil {
+		t.Fatalf("ConcurrentBroker.Close(): %v", err)
+	}
+}
+
 func TestConcurrentProducers(t *testing.T) {
 	c, _ := openConcurrentBroker(t)
-	defer c.broker.Close()
+	defer closeConcurrentBroker(t, c)
 
 	if err := c.broker.CreateTopic("concurrent", 4); err != nil {
 		t.Fatalf("failed to create topic: %v", err)
@@ -67,7 +74,7 @@ func TestConcurrentProducers(t *testing.T) {
 func TestConcurrentProducersAndReaders(t *testing.T) {
 	// go lang will detect concurrent writes to the log and fail this test if no locks are used
 	c, _ := openConcurrentBroker(t)
-	defer c.broker.Close()
+	defer closeConcurrentBroker(t, c)
 
 	if err := c.broker.CreateTopic("concurrent", 1); err != nil {
 		t.Fatalf("failed to create topic: %v", err)
@@ -124,4 +131,8 @@ func TestConcurrentProducersAndReaders(t *testing.T) {
 	// allow the go routines to stop now
 	close(stop)
 	wg.Wait()
+}
+
+func (c *ConcurrentBroker) Close() error {
+	return c.broker.Close()
 }
