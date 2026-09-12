@@ -62,27 +62,21 @@ func (l *Log) buildIndex() error {
 	var filePos int64 = 0
 	for {
 
-		var offsetBytes [8]byte
-		_, err := l.logFile.ReadAt(offsetBytes[:], filePos)
-		if err == io.EOF {
-			break
+		var header [12]byte
+		n, err := l.logFile.ReadAt(header[:], filePos)
+
+		if n != 12 || err != nil {
+			if err == io.EOF {
+				break
+			}
+			return errors.Join(err, errors.New("failed to read 12 header bytes"))
 		}
 
-		if err != nil {
-			return fmt.Errorf("failed to parse offset: %v", err)
-		}
-
-		offset := parseOffset(offsetBytes[:])
-
-		var lengthBytes [4]byte
-		_, err = l.logFile.ReadAt(lengthBytes[:], filePos+8)
-		if err != nil {
-			return fmt.Errorf("failed to parse length: %v", err)
-		}
-		length := parseLength(lengthBytes[:])
+		offset := parseOffset(header[:8])
+		length := parseLength(header[8:])
 
 		payloadEnd := filePos + (12 + int64(length))
-		utils.Logger.Debug("building index", "offset", offset, "filepos", filePos, "length", length, "payloadEnd", payloadEnd)
+		// utils.Logger.Debug("building index", "offset", offset, "filepos", filePos, "length", length, "payloadEnd", payloadEnd)
 
 		if payloadEnd > stat.Size() {
 			utils.Logger.Debug(fmt.Sprintf("Payload of record at offset=%d pos=%d is invalid, ignoreing it", offset, filePos))
